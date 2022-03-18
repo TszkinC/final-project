@@ -1,0 +1,69 @@
+## Run these in the same folder! Change buckets and pathings as appropriate ##
+
+Powershell:
+docker run --rm -v ${PWD}:/var/task "lambci/lambda:build-python3.8" /bin/sh -c "pip install -r requirements.txt -t build/packages; cd build/packages && zip -r ../redshiftconn.zip .; cd ../../; rm -r build/packages; zip -g build/redshiftconn.zip redshiftconn.py; exit"
+
+creating stack:
+aws cloudformation create-stack --stack-name sqr00t-testRSconn --template-url https://sqr00t-cf.s3.eu-west-1.amazonaws.com/templates/testRSconn.yaml --region eu-west-1 --parameters ParameterKey=DeploymentBucket,ParameterValue='sqr00t-cf' ParameterKey=DeploymentPackageKey,ParameterValue='lambdas/redshiftconn.zip' ParameterKey=BucketName,ParameterValue='sqr00t-redshiftconn' --capabilities CAPABILITY_IAM
+
+
+
+Lambda Layer version 1:
+Powershell:
+docker run --rm -v ${PWD}:/var/task "lambci/lambda:build-python3.8" /bin/sh -c "pip install -r requirements_lambdalayer.txt -t build/packages; cd build/packages && zip -r ../lambda_layer_v1.zip .; cd ../../; rm -r build/packages; pip install -r requirements_lambdafunction.txt -t build/packages; cd build/packages && zip -r ../lambda_function.zip .; cd ../../; rm -r build/packages; zip -g build/lambda_function.zip ssm_params.py; exit"
+
+copy both zips to bucket:
+aws s3 cp build/lambda_function.zip s3://sqr00t-cf/lambdafunctions/; aws s3 cp build/lambda_layer_v1.zip s3://sqr00t-cf/lambdalayers/
+
+copy template to bucket:
+aws s3 cp ../templates/testssm_params_lambda_layer.yaml s3://sqr00t-cf/templates/
+
+creating stack:
+aws cloudformation create-stack --stack-name sqr00t-test-lambdalayer-ssmparams --template-url https://sqr00t-cf.s3.eu-west-1.amazonaws.com/templates/testssm_params_lambda_layer.yaml --region eu-west-1 --parameters ParameterKey=DeploymentBucket,ParameterValue='sqr00t-cf' ParameterKey=DeploymentPackageKey,ParameterValue='lambdafunctions/lambda_function.zip' ParameterKey=BucketName,ParameterValue='sqr00t-ssmparams' --capabilities CAPABILITY_IAM
+
+
+
+Lambda test version 2: (with etl functionality, no layer)
+pandas not found in lambda layer, rebuild with pandas requirements:
+docker run --rm -v ${PWD}:/var/task "lambci/lambda:build-python3.8" /bin/sh -c "pip install -r requirements_testetl.txt -t build/packages; cd build/packages && zip -r ../lambda_function_test_etl.zip .; cd ../../; rm -r build/packages; zip -g build/lambda_function_test_etl.zip etl_testing.py; exit"
+
+copy both zips to bucket:
+aws s3 cp build/lambda_function_test_etl.zip s3://sqr00t-cf/lambdafunctions/; aws s3 cp build/lambda_layer_v1.zip s3://sqr00t-cf/lambdalayers/
+
+copy template to bucket:
+aws s3 cp ../templates/test_etl_lambda.yaml s3://sqr00t-cf/templates/
+
+creating stack:
+aws cloudformation create-stack --stack-name sqr00t-testetl --template-url https://sqr00t-cf.s3.eu-west-1.amazonaws.com/templates/test_etl_lambda.yaml --region eu-west-1 --parameters ParameterKey=DeploymentBucket,ParameterValue='sqr00t-cf' ParameterKey=DeploymentPackageKey,ParameterValue='lambdafunctions/lambda_function_test_etl.zip' ParameterKey=BucketName,ParameterValue='sqr00t-etltest' --capabilities CAPABILITY_IAM
+
+
+
+Lambda Layer test version 2: (with etl functionality)
+docker run --rm -v ${PWD}:/var/task "lambci/lambda:build-python3.8" /bin/sh -c "pip install -r requirements_testetl.txt -t build/packages/python; cd build/packages && zip -r ../lambda_layer_v1.zip python; cd ../../; rm -r build/packages; zip -r build/lambda_function_test_etl.zip etl_testing.py; exit"
+
+copy both zips to bucket:
+aws s3 cp build/lambda_function_test_etl.zip s3://sqr00t-cf/lambdafunctions/; aws s3 cp build/lambda_layer_v1.zip s3://sqr00t-cf/lambdalayers/
+
+copy template to bucket:
+aws s3 cp ../templates/test_etl_lambda_layer.yaml s3://sqr00t-cf/templates/
+
+creating stack:
+aws cloudformation create-stack --stack-name sqr00t-testetl --template-url https://sqr00t-cf.s3.eu-west-1.amazonaws.com/templates/test_etl_lambda_layer.yaml --region eu-west-1 --parameters ParameterKey=DeploymentBucket,ParameterValue='sqr00t-cf' ParameterKey=DeploymentPackageKey,ParameterValue='lambdafunctions/lambda_function_test_etl.zip' ParameterKey=BucketName,ParameterValue='sqr00t-etltest' --capabilities CAPABILITY_IAM
+
+
+
+** LATEST VERSION **
+Deployment etl_v1.1 (path bug-fix with etl functionality and lambda layers):
+docker run --rm -v ${PWD}:/var/task "lambci/lambda:build-python3.8" /bin/sh -c "pip install -r requirements_testetl.txt -t build/packages/python; cd build/packages && zip -r ../lambda_layer_v1.zip python; cd ../../; rm -r build/packages; zip -r build/etl_lambdafunction_v1.1.zip etl_v1.1.py; exit"
+
+copy both zips to bucket:
+aws s3 cp build/etl_lambdafunction_v1.1.zip s3://team3-deployment/lambdafunctions/; aws s3 cp build/lambda_layer_v1.zip s3://team3-deployment/lambdalayers/
+
+copy template to bucket:
+aws s3 cp ../templates/etl_stack_v1.1.yaml s3://team3-deployment/templates/
+
+creating stack:
+aws cloudformation create-stack --stack-name team3-deployment --template-url https://team3-deployment.s3.eu-west-1.amazonaws.com/templates/etl_stack_v1.1.yaml --region eu-west-1 --parameters ParameterKey=DeploymentBucket,ParameterValue='team3-deployment' ParameterKey=DeploymentPackageKey,ParameterValue='lambdafunctions/etl_lambdafunction_v1.1.zip' ParameterKey=BucketName,ParameterValue='team3-data' --capabilities CAPABILITY_IAM
+
+uncomment .yaml then update-stack:
+aws cloudformation update-stack --stack-name team3-deployment --template-url https://team3-deployment.s3.eu-west-1.amazonaws.com/templates/etl_stack_v1.1.yaml --region eu-west-1 --parameters ParameterKey=DeploymentBucket,ParameterValue='team3-deployment' ParameterKey=DeploymentPackageKey,ParameterValue='lambdafunctions/etl_lambdafunction_v1.1.zip' ParameterKey=BucketName,ParameterValue='team3-data' --capabilities CAPABILITY_IAM
